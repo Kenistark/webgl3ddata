@@ -207,8 +207,8 @@
     <div class="control-group">
       <label for="model-select">표시할 3D 모델</label>
       <select id="model-select">
-        <option value="JadeToad.glb">JadeToad.glb (옥 두꺼비)</option>
-        <option value="scene.gltf">scene.gltf (기본 씬)</option>
+        <option value="jadetoad">JadeToad.glb (옥 두꺼비)</option>
+        <option value="breather">Breather / SCBA (scene.gltf)</option>
         <option value="both">모두 함께 보기</option>
       </select>
     </div>
@@ -361,6 +361,14 @@
     scene.add(gridHelper);
 
     // 5. 모델 로더 및 피벗(중심점) 완벽 고정 배치
+    // 모델 경로: index.html 기준 상대 경로라 로컬 서버와 Vercel에서 똑같이 동작한다.
+    // 새 모델을 추가하면 여기와 #model-select 옵션에 함께 등록한다.
+    const MODEL_DIR = './source/model/';
+    const MODEL_URLS = {
+      jadetoad: `${MODEL_DIR}JadeToad.glb`,
+      breather: `${MODEL_DIR}breather/scene.gltf`
+    };
+
     const loader = new GLTFLoader();
     const modelGroup = new THREE.Group();
     scene.add(modelGroup);
@@ -432,11 +440,11 @@
       try {
         if (mode === 'both') {
           await Promise.all([
-            loadSingleModel('./JadeToad.glb', -1.4),
-            loadSingleModel('./scene.gltf', 1.4)
+            loadSingleModel(MODEL_URLS.jadetoad, -1.4),
+            loadSingleModel(MODEL_URLS.breather, 1.4)
           ]);
         } else {
-          await loadSingleModel(`./${mode}`, 0);
+          await loadSingleModel(MODEL_URLS[mode], 0);
         }
         resetCameraView();
       } catch (error) {
@@ -559,7 +567,7 @@
       renderer.render(scene, camera);
     }
 
-    updateDisplayedModel('JadeToad.glb');
+    updateDisplayedModel('jadetoad');
     animate();
   </script>
 </body>
