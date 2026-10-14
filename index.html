@@ -1,127 +1,566 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <title>Babylon.js - Anatomy Labels</title>
-    <script src="https://cdn.babylonjs.com/babylon.js"></script>
-    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-        #renderCanvas { width: 100%; height: 100%; touch-action: none; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGL 3D Viewer - JadeToad & Scene (Stable V2)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #1a1a2e;
+      color: #ffffff;
+    }
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+    #canvas-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    /* 컨트롤 패널 UI */
+    #ui-panel {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 290px;
+      background: rgba(22, 24, 38, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+      z-index: 10;
+      user-select: none;
+    }
+    #ui-panel h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .control-group {
+      margin-bottom: 14px;
+    }
+    .control-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+    }
+    .control-group select,
+    .control-group input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+    }
+    .control-group select {
+      background: #25283d;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .btn {
+      flex: 1;
+      padding: 8px 10px;
+      background: #2e334d;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn:hover {
+      background: #3d4466;
+    }
+    .btn.active {
+      background: #10b981;
+      border-color: #059669;
+      color: #fff;
+    }
+    .color-swatches {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.15s ease;
+    }
+    .swatch:hover {
+      transform: scale(1.1);
+    }
+    .swatch.active {
+      border-color: #10b981;
+    }
+    input[type="color"] {
+      width: 32px;
+      height: 28px;
+      border: none;
+      background: none;
+      cursor: pointer;
+    }
+    /* 로딩 오버레이 */
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 17, 26, 0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      transition: opacity 0.3s ease;
+    }
+    #loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(255, 255, 255, 0.15);
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin-bottom: 14px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    #loading-text {
+      font-size: 14px;
+      color: #e2e8f0;
+    }
+    /* 하단 조작 안내 */
+    #help-bar {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(22, 24, 38, 0.75);
+      backdrop-filter: blur(8px);
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      pointer-events: none;
+    }
+  </style>
+
+  <!-- Three.js Import Map (CDN) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-    <canvas id="renderCanvas"></canvas>
-    <script>
-        var canvas = document.getElementById("renderCanvas");
-        var engine = new BABYLON.Engine(canvas, true);
 
-        var createScene = function () {
-            var scene = new BABYLON.Scene(engine);
-            scene.createDefaultCameraOrLight(true, true, true);
-            scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.15, 1);
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-text">3D 모델 불러오는 중...</div>
+  </div>
 
-            var camera = scene.activeCamera;
-            camera.wheelPrecision = 50; 
-            camera.lowerRadiusLimit = 1; 
-            camera.upperRadiusLimit = 50; 
+  <div id="canvas-container"></div>
 
-            // 1. 전체 UI 캔버스 생성
-            var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+  <div id="ui-panel">
+    <h2>3D 뷰어 컨트롤</h2>
 
-            // 2. 지시선 및 이름표 생성 함수
-            var createLabel = function(mesh, text, offsetX, offsetY, color) {
-                var label = new BABYLON.GUI.Rectangle("label");
-                label.background = "rgba(0, 0, 0, 0.7)";
-                label.height = "35px";
-                label.width = "100px";
-                label.cornerRadius = 10;
-                label.thickness = 2;
-                label.color = color;
-                label.linkOffsetY = offsetY; 
-                label.linkOffsetX = offsetX; 
-                advancedTexture.addControl(label);
-                label.linkWithMesh(mesh); 
+    <!-- 모델 선택 -->
+    <div class="control-group">
+      <label for="model-select">표시할 3D 모델</label>
+      <select id="model-select">
+        <option value="JadeToad.glb">JadeToad.glb (옥 두꺼비)</option>
+        <option value="scene.gltf">scene.gltf (기본 씬)</option>
+        <option value="both">모두 함께 보기</option>
+      </select>
+    </div>
 
-                var textBlock = new BABYLON.GUI.TextBlock();
-                textBlock.text = text;
-                textBlock.color = "white";
-                textBlock.fontWeight = "bold";
-                label.addControl(textBlock);
+    <!-- 카메라 & 자동 회전 (예시 2) -->
+    <div class="control-group">
+      <label>카메라 컨트롤 (OrbitControls)</label>
+      <div class="btn-row">
+        <button id="btn-autorotate" class="btn active">자동 회전: ON</button>
+        <button id="btn-reset-cam" class="btn">시점 초기화</button>
+      </div>
+    </div>
 
-                var target = new BABYLON.GUI.Ellipse();
-                target.width = "12px";
-                target.height = "12px";
-                target.color = color;
-                target.thickness = 2;
-                target.background = "rgba(0, 0, 0, 0.5)";
-                advancedTexture.addControl(target);
-                target.linkWithMesh(mesh); 
+    <div class="control-group">
+      <label>
+        <span>회전 속도</span>
+        <span id="val-rot-speed">2.0</span>
+      </label>
+      <input type="range" id="slider-rot-speed" min="0.2" max="10" step="0.2" value="2.0" />
+    </div>
 
-                var line = new BABYLON.GUI.Line();
-                line.lineWidth = 2;
-                line.color = color;
-                line.dash = [5, 5]; 
-                advancedTexture.addControl(line);
-                line.linkWithMesh(mesh); 
-                line.connectedControl = label; 
-            };
+    <!-- 조명 & 그림자 설정 (예시 3) -->
+    <div class="control-group">
+      <label>
+        <span>주 조명(직사광) 밝기</span>
+        <span id="val-dir-light">2.5</span>
+      </label>
+      <input type="range" id="slider-dir-light" min="0" max="6" step="0.1" value="2.5" />
+    </div>
 
-            // 3. 모델 로드 및 앵커(타겟) 부착
-            // 💡 수정됨: 경로를 "./" 에서 "/" 로 변경하여 Vercel 라우팅 오류 방지
-            BABYLON.SceneLoader.ImportMeshAsync("", "/", "JadeToad.glb", scene).then((result) => {
-                camera.attachControl(canvas, false);
-                
-                var rootMesh = result.meshes[0];
-                rootMesh.position = BABYLON.Vector3.Zero();
-                camera.zoomOn(result.meshes, true);
-                
-                // 머리 위치
-                var headAnchor = BABYLON.MeshBuilder.CreateSphere("head", {diameter: 0.1}, scene);
-                headAnchor.parent = rootMesh; 
-                headAnchor.position = new BABYLON.Vector3(0, 1.5, 0.8); 
-                headAnchor.isVisible = false; 
+    <div class="control-group">
+      <label>
+        <span>환경광(주변광) 밝기</span>
+        <span id="val-amb-light">1.2</span>
+      </label>
+      <input type="range" id="slider-amb-light" min="0" max="4" step="0.1" value="1.2" />
+    </div>
 
-                // 가슴 위치
-                var chestAnchor = BABYLON.MeshBuilder.CreateSphere("chest", {diameter: 0.1}, scene);
-                chestAnchor.parent = rootMesh;
-                chestAnchor.position = new BABYLON.Vector3(0, 0.8, 1.0); 
-                chestAnchor.isVisible = false;
+    <div class="control-group">
+      <label>
+        <span>조명 각도 회전</span>
+        <span id="val-light-angle">45°</span>
+      </label>
+      <input type="range" id="slider-light-angle" min="0" max="360" step="1" value="45" />
+    </div>
 
-                // 배 위치
-                var abdomenAnchor = BABYLON.MeshBuilder.CreateSphere("abdomen", {diameter: 0.1}, scene);
-                abdomenAnchor.parent = rootMesh;
-                abdomenAnchor.position = new BABYLON.Vector3(0, 0.3, -0.5); 
-                abdomenAnchor.isVisible = false;
+    <div class="control-group">
+      <label>바닥 그림자 & 그리드</label>
+      <div class="btn-row">
+        <button id="btn-shadow" class="btn active">그림자: ON</button>
+        <button id="btn-grid" class="btn">그리드: OFF</button>
+      </div>
+    </div>
 
-                createLabel(headAnchor, "머리", 120, -120, "Cyan");
-                createLabel(chestAnchor, "가슴", -150, -50, "Lime");
-                createLabel(abdomenAnchor, "배", 120, 80, "Yellow");
+    <!-- 배경색 변경 (예시 3) -->
+    <div class="control-group" style="margin-bottom: 0;">
+      <label>배경색 테마</label>
+      <div class="color-swatches">
+        <div class="swatch active" data-color="#1a1a2e" style="background: #1a1a2e;" title="다크 네이비"></div>
+        <div class="swatch" data-color="#0f0f12" style="background: #0f0f12;" title="스튜디오 블랙"></div>
+        <div class="swatch" data-color="#132a13" style="background: #132a13;" title="포레스트 제이드"></div>
+        <div class="swatch" data-color="#e2e8f0" style="background: #e2e8f0;" title="라이트 그레이"></div>
+        <input type="color" id="color-picker" value="#1a1a2e" title="직접 선택" />
+      </div>
+    </div>
+  </div>
 
-                // 4. 지시선 탄력 테스트용 이동 애니메이션
-                var time = 0;
-                scene.onBeforeRenderObservable.add(function () {
-                    rootMesh.position.y = Math.sin(time) * 0.5; 
-                    rootMesh.position.x = Math.cos(time * 0.5) * 0.3; 
-                    time += 0.05;
-                });
-            }).catch((error) => {
-                // 💡 추가됨: 파일 로드 실패 시 콘솔 에러 및 알림창 띄우기
-                console.error("3D 모델 로드 실패:", error);
-                alert("3D 모델(JadeToad.glb)을 불러오지 못했습니다. 파일 위치나 이름을 확인해주세요.");
-            });
+  <div id="help-bar">
+    마우스 좌클릭 드래그: 회전 &nbsp;|&nbsp; 마우스 휠: 줌인/줌아웃 &nbsp;|&nbsp; 우클릭 드래그: 수평 이동
+  </div>
 
-            return scene;
-        };
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-        var scene = createScene();
-        engine.runRenderLoop(function () {
-            scene.render();
-        });
+    const container = document.getElementById('canvas-container');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
 
-        window.addEventListener("resize", function () {
-            engine.resize();
-        });
-    </script>
+    // 1. 씬, 카메라, 렌더러 초기화
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#1a1a2e');
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 1.5, 4.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    container.appendChild(renderer.domElement);
+
+    // 2. OrbitControls (상하 흔들림/뒤집힘 방지 및 피벗 안정화 적용)
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 2.0;
+    controls.minDistance = 1.2;
+    controls.maxDistance = 20;
+    // 상하(Polar) 각도 제한: 바닥 아래로 내려가거나 정수리 위에서 덜컥거리며 뒤집히는 현상 방지
+    controls.minPolarAngle = THREE.MathUtils.degToRad(15);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(88);
+    // 우클릭 패닝 시 위아래가 아닌 수평(바닥) 기준으로 안정적으로 이동하도록 설정
+    controls.screenSpacePanning = false;
+    controls.target.set(0, 0, 0);
+
+    // 3. 조명 설정 (환경광 + 주 직사광 + 보조 림라이트)
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444455, 1.2);
+    hemiLight.position.set(0, 20, 0);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+    dirLight.position.set(5, 8, 5);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 0.5;
+    dirLight.shadow.camera.far = 25;
+    const d = 4;
+    dirLight.shadow.camera.left = -d;
+    dirLight.shadow.camera.right = d;
+    dirLight.shadow.camera.top = d;
+    dirLight.shadow.camera.bottom = -d;
+    dirLight.shadow.bias = -0.0005;
+    scene.add(dirLight);
+
+    const rimLight = new THREE.DirectionalLight(0x90e0ef, 0.8);
+    rimLight.position.set(-5, 3, -5);
+    scene.add(rimLight);
+
+    // 4. 바닥 그림자 수용 평면 및 그리드
+    const FLOOR_Y = -1.0;
+    const shadowPlaneGeo = new THREE.PlaneGeometry(30, 30);
+    const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.35 });
+    const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = FLOOR_Y;
+    shadowPlane.receiveShadow = true;
+    scene.add(shadowPlane);
+
+    const gridHelper = new THREE.GridHelper(10, 20, 0x444466, 0x2b2b40);
+    gridHelper.position.y = FLOOR_Y;
+    gridHelper.visible = false;
+    scene.add(gridHelper);
+
+    // 5. 모델 로더 및 피벗(중심점) 완벽 고정 배치
+    const loader = new GLTFLoader();
+    const modelGroup = new THREE.Group();
+    scene.add(modelGroup);
+
+    function clearModels() {
+      while (modelGroup.children.length > 0) {
+        const obj = modelGroup.children[0];
+        modelGroup.remove(obj);
+      }
+    }
+
+    function normalizeAndPlaceModel(gltfScene, offsetX = 0, targetSize = 2.2) {
+      // 래퍼 그룹을 사용하여 스케일/위치 변환 시 중심축이 어긋나 위아래로 요동치는 현상 방지
+      const wrapper = new THREE.Group();
+      wrapper.add(gltfScene);
+
+      // 월드 매트릭스 강제 업데이트 후 정확한 바운딩 박스 측정
+      gltfScene.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(gltfScene);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+
+      // 모델을 원점(0,0,0) 중심으로 이동
+      gltfScene.position.sub(center);
+
+      // 타겟 크기에 맞춰 래퍼 스케일 조정
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = maxDim > 0 ? targetSize / maxDim : 1;
+      wrapper.scale.setScalar(scale);
+
+      // 바닥(FLOOR_Y) 위에 정확히 올라오도록 Y 위치 고정
+      const halfHeight = (size.y * scale) / 2;
+      wrapper.position.set(offsetX, FLOOR_Y + halfHeight, 0);
+
+      gltfScene.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+
+      modelGroup.add(wrapper);
+    }
+
+    function loadSingleModel(url, offsetX = 0) {
+      return new Promise((resolve, reject) => {
+        loader.load(
+          url,
+          (gltf) => {
+            normalizeAndPlaceModel(gltf.scene, offsetX);
+            resolve(gltf);
+          },
+          (xhr) => {
+            if (xhr.total > 0) {
+              const pct = Math.round((xhr.loaded / xhr.total) * 100);
+              loadingText.textContent = `${url} 불러오는 중... (${pct}%)`;
+            }
+          },
+          (err) => reject(err)
+        );
+      });
+    }
+
+    async function updateDisplayedModel(mode) {
+      loadingOverlay.classList.remove('hidden');
+      loadingText.textContent = '3D 모델 불러오는 중...';
+      clearModels();
+
+      try {
+        if (mode === 'both') {
+          await Promise.all([
+            loadSingleModel('./JadeToad.glb', -1.4),
+            loadSingleModel('./scene.gltf', 1.4)
+          ]);
+        } else {
+          await loadSingleModel(`./${mode}`, 0);
+        }
+        resetCameraView();
+      } catch (error) {
+        console.error('모델 로드 실패:', error);
+        loadingText.textContent = '모델을 불러오지 못했습니다. 로컬 웹 서버(Live Server 등)에서 실행해 주세요.';
+        setTimeout(() => loadingOverlay.classList.add('hidden'), 3000);
+        return;
+      }
+
+      loadingOverlay.classList.add('hidden');
+    }
+
+    function resetCameraView() {
+      // 모델의 정중앙 높이를 바라보도록 타겟 고정
+      const box = new THREE.Box3().setFromObject(modelGroup);
+      const center = box.isEmpty() ? new THREE.Vector3(0, -0.2, 0) : box.getCenter(new THREE.Vector3());
+      controls.target.set(0, center.y, 0);
+      camera.position.set(0, center.y + 1.2, 4.6);
+      controls.update();
+    }
+
+    // 6. UI 이벤트 연결
+    const modelSelect = document.getElementById('model-select');
+    modelSelect.addEventListener('change', (e) => {
+      updateDisplayedModel(e.target.value);
+    });
+
+    const btnAutoRotate = document.getElementById('btn-autorotate');
+    btnAutoRotate.addEventListener('click', () => {
+      controls.autoRotate = !controls.autoRotate;
+      btnAutoRotate.classList.toggle('active', controls.autoRotate);
+      btnAutoRotate.textContent = `자동 회전: ${controls.autoRotate ? 'ON' : 'OFF'}`;
+    });
+
+    document.getElementById('btn-reset-cam').addEventListener('click', resetCameraView);
+
+    const sliderRotSpeed = document.getElementById('slider-rot-speed');
+    const valRotSpeed = document.getElementById('val-rot-speed');
+    sliderRotSpeed.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      controls.autoRotateSpeed = val;
+      valRotSpeed.textContent = val.toFixed(1);
+    });
+
+    const sliderDirLight = document.getElementById('slider-dir-light');
+    const valDirLight = document.getElementById('val-dir-light');
+    sliderDirLight.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      dirLight.intensity = val;
+      valDirLight.textContent = val.toFixed(1);
+    });
+
+    const sliderAmbLight = document.getElementById('slider-amb-light');
+    const valAmbLight = document.getElementById('val-amb-light');
+    sliderAmbLight.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      hemiLight.intensity = val;
+      valAmbLight.textContent = val.toFixed(1);
+    });
+
+    const sliderLightAngle = document.getElementById('slider-light-angle');
+    const valLightAngle = document.getElementById('val-light-angle');
+    sliderLightAngle.addEventListener('input', (e) => {
+      const deg = parseFloat(e.target.value);
+      const rad = THREE.MathUtils.degToRad(deg);
+      const radius = 7.07;
+      dirLight.position.x = Math.cos(rad) * radius;
+      dirLight.position.z = Math.sin(rad) * radius;
+      valLightAngle.textContent = `${deg}°`;
+    });
+
+    const btnShadow = document.getElementById('btn-shadow');
+    btnShadow.addEventListener('click', () => {
+      const enabled = !renderer.shadowMap.enabled;
+      renderer.shadowMap.enabled = enabled;
+      dirLight.castShadow = enabled;
+      shadowPlane.visible = enabled;
+      btnShadow.classList.toggle('active', enabled);
+      btnShadow.textContent = `그림자: ${enabled ? 'ON' : 'OFF'}`;
+    });
+
+    const btnGrid = document.getElementById('btn-grid');
+    btnGrid.addEventListener('click', () => {
+      gridHelper.visible = !gridHelper.visible;
+      btnGrid.classList.toggle('active', gridHelper.visible);
+      btnGrid.textContent = `그리드: ${gridHelper.visible ? 'ON' : 'OFF'}`;
+    });
+
+    const swatches = document.querySelectorAll('.swatch');
+    const colorPicker = document.getElementById('color-picker');
+
+    function setBackgroundColor(hex) {
+      scene.background = new THREE.Color(hex);
+      colorPicker.value = hex;
+      swatches.forEach((s) => {
+        s.classList.toggle('active', s.dataset.color.toLowerCase() === hex.toLowerCase());
+      });
+    }
+
+    swatches.forEach((swatch) => {
+      swatch.addEventListener('click', () => {
+        setBackgroundColor(swatch.dataset.color);
+      });
+    });
+
+    colorPicker.addEventListener('input', (e) => {
+      setBackgroundColor(e.target.value);
+    });
+
+    // 7. 반응형 리사이즈 및 렌더링 루프
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    updateDisplayedModel('JadeToad.glb');
+    animate();
+  </script>
 </body>
 </html>
